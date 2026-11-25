@@ -1,0 +1,26 @@
+name: kind HPA와 SHA 고정
+on:
+  push:
+    branches: [ops]
+permissions:
+  contents: read
+jobs:
+  hpa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: |
+          kind create cluster --name lab --wait 180s
+          docker build -q -t hackathon-app:v1 .
+          kind load docker-image hackathon-app:v1 --name lab
+          sed -i "s|image: .*hackathon-app:.*|image: hackathon-app:v1|" k8s/deployment.yaml
+          kubectl apply -f k8s/
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          kubectl patch deployment metrics-server -n kube-system --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+          kubectl autoscale deployment hackathon-app --cpu-percent=30 --min=2 --max=5 || kubectl autoscale deployment hackathon-app --cpu=30% --min=2 --max=5
+          kubectl run load --image=busybox:1.36 --restart=Never -- sh -c 'for i in 1 2 3 4 5 6; do (while true; do wget -qO- http://hackathon-app/ >/dev/null; done) & done; wait'
+          for i in $(seq 1 18); do kubectl get hpa hackathon-app --no-headers; sleep 10; done
+          test "$(kubectl get deployment hackathon-app -o jsonpath='{.spec.replicas}')" -gt 2

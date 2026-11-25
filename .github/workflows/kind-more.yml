@@ -1,7 +1,7 @@
 name: kind 교재 4과목
 on:
   push:
-    branches: [ops]
+    branches: [ops-off]
   workflow_dispatch:
 permissions:
   contents: read
