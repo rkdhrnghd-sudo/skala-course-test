@@ -13,3 +13,7 @@ def test_health():
     res = client.get("/health")
     assert res.status_code == 200
     assert res.json() == {"status": "ok"}
+
+
+def test_version():
+    assert client.get("/version").json() == {"version": "0.1.0"}
