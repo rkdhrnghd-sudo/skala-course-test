@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.99"]
     steps:
       - name: 코드 가져오기
         uses: actions/checkout@v7
