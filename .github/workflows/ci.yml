@@ -15,7 +15,7 @@ jobs:
     name: test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         python-version: ["3.12", "3.13", "3.99"]
     steps:
