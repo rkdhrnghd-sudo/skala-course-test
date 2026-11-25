@@ -1,0 +1,16 @@
+name: python-test
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.12"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-app
+        with:
+          python-version: ${{ inputs.python-version }}
+      - run: pytest -v

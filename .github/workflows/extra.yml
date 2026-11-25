@@ -1,0 +1,37 @@
+name: Extra
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 23 * * 0-4"
+jobs:
+  reuse:
+    uses: ./.github/workflows/python-test.yml
+    with:
+      python-version: "3.13"
+  outputs:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - id: vars
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+  report:
+    needs: outputs
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "만든 태그는 ${{ needs.outputs.outputs.tag }}"
+          echo "## 오늘의 체크리스트" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 커밋하기" >> "$GITHUB_STEP_SUMMARY"
+  lint-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt') }}
+      - uses: ./.github/actions/setup-app
+      - run: pip install ruff pytest-cov
+      - run: ruff check .
+      - run: pytest --cov=app --cov-report=term --cov-fail-under=80

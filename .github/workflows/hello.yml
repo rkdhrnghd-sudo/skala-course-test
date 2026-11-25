@@ -1,0 +1,41 @@
+name: Hello
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        type: string
+        default: 구홍
+      env:
+        type: choice
+        options: [dev, prod]
+  push:
+    branches: [main]
+env:
+  APP_NAME: hackathon-app
+jobs:
+  say-hello:
+    runs-on: ubuntu-latest
+    env:
+      LOG_LEVEL: debug
+    steps:
+      - name: 인사하기
+        run: echo "hello hackathon ${{ inputs.name }} ${{ inputs.env }}"
+      - name: 실행 환경 보기
+        run: |
+          echo "저장소: ${{ github.repository }}"
+          echo "이벤트: ${{ github.event_name }}"
+          uname -a
+          python3 --version
+          date
+      - name: 값 출력
+        env:
+          GREETING: hello
+        run: echo "$GREETING $APP_NAME ($LOG_LEVEL)"
+      - name: 값 읽기 실험
+        env:
+          TOKEN: ${{ secrets.DEMO_TOKEN }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          echo "region=$REGION"
+          echo "token=$TOKEN"
+          echo "token 길이=${#TOKEN}"
