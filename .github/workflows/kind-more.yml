@@ -1,0 +1,91 @@
+name: kind 교재 4과목
+on:
+  push:
+    branches: [ops]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: 준비
+        run: |
+          kind create cluster --name lab --wait 180s
+          docker build -q -t hackathon-app:v1 .
+          kind load docker-image hackathon-app:v1 --name lab
+          sed -i "s|image: .*hackathon-app:.*|image: hackathon-app:v1|" k8s/deployment.yaml
+      - name: ConfigMap, Secret 만들고 연결
+        run: |
+          kubectl create configmap hackathon-config --from-literal=LOG_LEVEL=info --from-literal=FEATURE_X=on
+          kubectl create secret generic hackathon-secret --from-literal=OPENAI_API_KEY=sk-not-real
+          sed -i 's|          envFrom:|          envFrom:\n            - configMapRef:\n                name: hackathon-config|' k8s/deployment.yaml
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/hackathon-app --timeout=180s
+          P=$(kubectl get pod -l app=hackathon-app -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec "$P" -- printenv LOG_LEVEL FEATURE_X
+          kubectl exec "$P" -- sh -c 'echo "key 길이 ${#OPENAI_API_KEY}"'
+      - name: 구조 보기
+        run: |
+          kubectl config current-context
+          kubectl get nodes,deployment,replicaset,pods,svc,endpoints
+          kubectl explain deployment.spec.replicas | head -5
+          kubectl apply --dry-run=server -f k8s/
+      - name: scale, Pod 지워도 살아나기
+        run: |
+          kubectl scale deployment/hackathon-app --replicas=4
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+          P=$(kubectl get pod -l app=hackathon-app -o jsonpath='{.items[0].metadata.name}')
+          kubectl delete pod "$P" --wait=false
+          sleep 12
+          kubectl get deployment hackathon-app
+          kubectl scale deployment/hackathon-app --replicas=2
+      - name: 없는 이미지 (ImagePullBackOff)
+        run: |
+          kubectl set image deployment/hackathon-app app=hackathon-app:nothing
+          kubectl rollout status deployment/hackathon-app --timeout=30s || true
+          kubectl get pods
+          kubectl describe pod -l app=hackathon-app | grep -E "Failed|ErrImage|BackOff" | tail -3
+          kubectl get events --sort-by=.lastTimestamp | tail -4
+          kubectl rollout undo deployment/hackathon-app
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+      - name: 컨테이너가 바로 죽음 (CrashLoopBackOff)
+        run: |
+          kubectl patch deployment hackathon-app --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/command","value":["sh","-c","echo boom; exit 1"]}]'
+          sleep 25
+          kubectl get pods
+          B=$(kubectl get pods -o name | while read p; do kubectl get "$p" -o jsonpath='{.metadata.name} {.status.containerStatuses[0].restartCount}{"\n"}'; done | awk '$2>0{print $1; exit}')
+          kubectl logs "$B" --previous || kubectl logs "$B"
+          kubectl rollout undo deployment/hackathon-app
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+      - name: 없는 경로 probe (스스로 해 보기 3)
+        run: |
+          sed 's|path: /health|path: /nothing|' k8s/deployment.yaml > /tmp/bad.yaml
+          kubectl apply -f /tmp/bad.yaml
+          kubectl rollout status deployment/hackathon-app --timeout=40s || true
+          kubectl describe pod -l app=hackathon-app | grep -E "statuscode: 404" | tail -1
+          kubectl rollout undo deployment/hackathon-app
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+          kubectl rollout history deployment/hackathon-app
+      - name: ConfigMap 바꾸고 재시작
+        run: |
+          kubectl create configmap hackathon-config --from-literal=LOG_LEVEL=debug --dry-run=client -o yaml | kubectl apply -f -
+          kubectl rollout restart deployment/hackathon-app
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+          P=$(kubectl get pod -l app=hackathon-app --field-selector=status.phase=Running -o jsonpath='{.items[-1:].metadata.name}')
+          kubectl exec "$P" -- printenv LOG_LEVEL
+      - name: Namespace와 자원 한도
+        run: |
+          kubectl create namespace team-a
+          kubectl create quota quota -n team-a --hard=requests.cpu=2,requests.memory=4Gi,limits.memory=6Gi,services.loadbalancers=1
+          kubectl apply -n team-a -f k8s/deployment.yaml || true
+          kubectl get quota -n team-a
+          kubectl auth can-i create namespaces
+      - name: 지우고 다시 배포
+        run: |
+          kubectl delete -f k8s/
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/hackathon-app --timeout=120s
+          kubectl run tmp --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- http://hackathon-app/health
