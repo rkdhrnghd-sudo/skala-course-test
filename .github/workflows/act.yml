@@ -22,15 +22,15 @@ jobs:
         run: ./act -l
       - name: 1) 그대로 실행 -> 초록이어야 함
         run: |
-          ./act pull_request -j test --matrix python-version:3.12 \
-            -P ubuntu-latest=catthehacker/ubuntu:act-latest \
-            --artifact-server-path /tmp/artifacts
+          ./act pull_request -W .github/workflows/ci.yml -j test \
+            --matrix python-version:3.12 \
+            -P ubuntu-latest=catthehacker/ubuntu:act-latest
       - name: 2) 테스트를 일부러 깨뜨리고 실행 -> 빨강이어야 함
         run: |
           sed -i 's/hello hackathon/hello broken/' tests/test_main.py
-          if ./act pull_request -j test --matrix python-version:3.12 \
-            -P ubuntu-latest=catthehacker/ubuntu:act-latest \
-            --artifact-server-path /tmp/artifacts; then
+          if ./act pull_request -W .github/workflows/ci.yml -j test \
+            --matrix python-version:3.12 \
+            -P ubuntu-latest=catthehacker/ubuntu:act-latest; then
             echo "기대와 다름: 깨뜨렸는데 통과함"
             exit 1
           fi
