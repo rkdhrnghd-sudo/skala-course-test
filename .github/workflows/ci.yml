@@ -32,7 +32,8 @@ jobs:
       - name: 테스트 실행
         run: pytest -v --junitxml=report.xml
       - name: 테스트 결과 보관
-        if: always()
+        # act 의 artifact 서버는 upload-artifact@v7 을 받지 못해 act 에서만 건너뛴다
+        if: always() && !env.ACT
         uses: actions/upload-artifact@v7
         with:
           name: pytest-report-${{ matrix.python-version }}
