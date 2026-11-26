@@ -1,0 +1,18 @@
+name: PR comment
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: PR 에 댓글 달기
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr comment "$PR_URL" --body "로봇이 단 댓글입니다 (권한 연습)"
