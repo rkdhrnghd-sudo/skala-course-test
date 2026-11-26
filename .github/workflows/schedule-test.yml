@@ -1,0 +1,15 @@
+name: Schedule test
+# 예약 실행 확인용. 확인이 끝나면 이 파일을 지운다(5분마다 돈다).
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "event=${{ github.event_name }}"
+          echo "UTC $(date -u '+%F %T') / KST $(TZ=Asia/Seoul date '+%F %T')" >> "$GITHUB_STEP_SUMMARY"
